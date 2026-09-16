@@ -471,6 +471,7 @@ class AdminController extends Controller
             'jumlah' => 'required|array',
             'jumlah.*' => 'integer|min:1',
         ]);
+        
 
         DB::beginTransaction();
 
@@ -519,6 +520,57 @@ class AdminController extends Controller
             return redirect()
                 ->back()
                 ->with('error', $e->getMessage());
+        }
+    }
+    
+// ==========================================
+    // HAPUS PEMINJAMAN
+    // ==========================================
+
+    public function destroyPeminjaman($id)
+    {
+        DB::beginTransaction();
+
+        try {
+            $peminjaman = Peminjaman::findOrFail($id);
+
+            // Kembalikan stok alat
+            foreach ($peminjaman->detailPinjam as $detail) {
+                $alat = Alat::find($detail->alat_id);
+
+                if ($alat) {
+                    $alat->increment('stok', $detail->jumlah);
+                }
+            }
+
+            // Hapus detail peminjaman
+            DetailPinjam::where(
+                'peminjaman_id',
+                $peminjaman->id
+            )->delete();
+
+            // Hapus peminjaman
+            $peminjaman->delete();
+
+            DB::commit();
+
+            return redirect()
+                ->route('admin.peminjaman.index')
+                ->with(
+                    'success',
+                    'Data peminjaman berhasil dihapus.'
+                );
+
+        } catch (\Exception $e) {
+
+            DB::rollBack();
+
+            return redirect()
+                ->route('admin.peminjaman.index')
+                ->with(
+                    'error',
+                    'Data peminjaman gagal dihapus: ' . $e->getMessage()
+                );
         }
     }
 }
