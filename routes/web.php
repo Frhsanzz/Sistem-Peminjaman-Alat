@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\PetugasController;
 use App\Http\Controllers\PeminjamanController;
+use App\Http\Controllers\LogAktivitasController;
 use App\Http\Controllers\AuthController;
 use App\Models\Pengembalian;
 use App\Models\User;
@@ -72,6 +73,8 @@ Route::middleware(['auth', 'role:admin'])
         Route::get('/dashboard', [AdminController::class, 'index'])
             ->name('dashboard');
 
+       
+
 
         // =================================================
         // CRUD ALAT
@@ -118,6 +121,10 @@ Route::middleware(['auth', 'role:admin'])
         Route::delete('/users/{id}', [AdminController::class, 'destroyUser'])
             ->name('user.destroy');
 
+        Route::patch('/users/{id}/toggle-status', [AdminController::class, 'toggleStatusUser'])
+            ->name('user.toggle-status');
+   
+
 
         // =================================================
         // CRUD KATEGORI
@@ -140,6 +147,7 @@ Route::middleware(['auth', 'role:admin'])
 
         Route::delete('/kategori/{id}', [AdminController::class, 'destroyKategori'])
             ->name('kategori.destroy');
+            
 
 
 // =================================================
@@ -201,7 +209,8 @@ Route::get('/pengembalian', function () {
 Route::get('/pengembalian/create', function () {
 
     $peminjaman = \App\Models\Peminjaman::with('user')
-        ->where('status', 'dipinjam')
+        ->where('status', 'dipinjamkan')
+        ->latest()
         ->get();
 
     $petugas = User::whereIn('role', ['petugas', 'admin'])
@@ -220,12 +229,12 @@ Route::get('/pengembalian/create', function () {
 Route::post('/pengembalian', function (Request $request) {
 
     $request->validate([
-        'peminjaman_id' => 'required|exists:peminjamans,id',
-        'tgl_kembali' => 'required|date',
-        'kondisi_kembali' => 'required|string',
-        'denda' => 'required|integer|min:0',
-        'petugas_id' => 'required|exists:users,id',
-    ]);
+    'peminjaman_id' => 'required|exists:peminjaman,id',
+    'tgl_kembali' => 'required|date',
+    'kondisi_kembali' => 'required|string',
+    'denda' => 'required|integer|min:0',
+    'petugas_id' => 'required|exists:users,id',
+]);
 
     Pengembalian::create([
         'peminjaman_id' => $request->peminjaman_id,
@@ -306,16 +315,18 @@ Route::delete('/pengembalian/{id}', function ($id) {
         ->with('success', 'Data pengembalian berhasil dihapus.');
 
 })->name('pengembalian.destroy');
+
+ Route::get('/log-aktivitas', [LogAktivitasController::class, 'index'])
+    ->name('log-aktivitas');
     });
 
 
 // =====================================================
 // PETUGAS
 // =====================================================
-Route::middleware(['auth', 'role:petugas,admin'])
-    ->prefix('petugas')
-    ->name('petugas.')
-    ->group(function () {
+Route::middleware(['auth', 'check.active', 'role:petugas'])->group(function () {
+    // route petugas
+
 
         // Persetujuan Peminjaman
         Route::get('/peminjaman', [PetugasController::class, 'indexPeminjaman'])
@@ -338,15 +349,17 @@ Route::middleware(['auth', 'role:petugas,admin'])
             ->name('pengembalian.proses');
 
         Route::get('/cetaklaporan', [PetugasController::class, 'cekLaporan'])
-            ->name('cetaklaporan.index');   
+            ->name('cetaklaporan.index');
+            
+        Route::get('/cetaklaporan/print', [PetugasController::class, 'printLaporan'])
+            ->name('cetaklaporan.print');
     });
 
 
 
-Route::middleware(['auth', 'role:peminjam'])
-    ->prefix('peminjam')
-    ->name('peminjam.')
-    ->group(function () {
+Route::middleware(['auth', 'check.active', 'role:peminjam'])->group(function () {
+    // route peminjam
+
 
         // Dashboard
         Route::get('/dashboard', [PeminjamanController::class, 'dashboard'])

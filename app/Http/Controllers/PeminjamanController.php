@@ -6,6 +6,7 @@ use App\Models\Alat;
 use App\Models\Peminjaman;
 use App\Models\DetailPinjam;
 use App\Models\Kategori;
+use App\Models\LogAktivitas;
 use Illuminate\Http\Request;
 
 use Illuminate\Support\Facades\DB;
@@ -18,34 +19,67 @@ class PeminjamanController extends Controller
     public function ajukanPeminjaman(Request $request)
 {
     $request->validate([
-        'tanggal_kembali' => 'required|date|after:today',
         'alat_id' => 'required|array|min:1',
         'alat_id.*' => 'exists:alat,id',
+
         'jumlah' => 'required|array',
+
+        'tanggal_kembali' => 'required|array',
+
+        'tanggal_kembali.*' => 'required|date|after:today',
     ]);
 
     DB::beginTransaction();
 
     try {
 
-        // Buat data utama peminjaman
+        // Ambil alat yang dipilih
+        $alatIds = $request->alat_id;
+
+        // Gunakan tanggal kembali dari alat pertama yang dipilih
+        $tanggalKembali = null;
+
+        foreach ($alatIds as $alatId) {
+            if (!empty($request->tanggal_kembali[$alatId])) {
+                $tanggalKembali = $request->tanggal_kembali[$alatId];
+                break;
+            }
+        }
+
+        if (!$tanggalKembali) {
+            return back()
+                ->withInput()
+                ->with('error', 'Silakan pilih tanggal kembali.');
+        }
+
+        // Buat peminjaman utama
         $peminjaman = Peminjaman::create([
             'user_id' => auth()->id(),
-            'tgl_pinjam' => now(),
-            'tgl_kembali_plan' => $request->tanggal_kembali,
+            'tgl_pinjam' => now()->toDateString(),
+            'tgl_kembali_plan' => $tanggalKembali,
             'status' => 'diajukan',
         ]);
 
-        // Simpan setiap alat yang dipilih
-        foreach ($request->alat_id as $alatId) {
+        // Simpan detail alat
+        foreach ($alatIds as $alatId) {
+
+            $jumlah = (int) ($request->jumlah[$alatId] ?? 1);
 
             DetailPinjam::create([
                 'peminjaman_id' => $peminjaman->id,
                 'alat_id' => $alatId,
-                'jumlah' => $request->jumlah[$alatId] ?? 1,
+                'jumlah' => $jumlah,
             ]);
-
         }
+
+        // Catat aktivitas SEKALI untuk satu pengajuan
+        DB::table('log_aktivitas')->insert([
+            'user_id' => auth()->id(),
+            'peminjaman_id' => $peminjaman->id,
+            'aktivitas' => 'Mengajukan peminjaman alat.',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
         DB::commit();
 
@@ -57,12 +91,11 @@ class PeminjamanController extends Controller
 
         DB::rollBack();
 
-        return redirect()
-            ->back()
+        return back()
             ->withInput()
             ->with('error', 'Gagal mengajukan peminjaman: ' . $e->getMessage());
     }
-    }
+}
 
     // Melihat riwayat peminjaman user yang sedang login
     public function riwayatPeminjaman()

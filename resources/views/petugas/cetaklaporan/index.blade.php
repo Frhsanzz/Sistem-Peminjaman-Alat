@@ -54,15 +54,13 @@ TOMBOL CETAK
 <div class="flex justify-end mb-6">
 
 
-<a href="{{ route('petugas.cetaklaporan.index', [
+<a href="{{ route('petugas.cetaklaporan.print', [
     'dari' => $dari,
     'sampai' => $sampai
 ]) }}"
     target="_blank"
     class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-semibold transition">
-
     Cetak Laporan
-
 </a>
 
 

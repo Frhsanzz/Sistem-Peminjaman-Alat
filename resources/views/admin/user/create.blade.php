@@ -5,8 +5,17 @@
 
 @section('content')
 <div class="max-w-xl bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-    <form action="{{ route('admin.user.store') }}" method="POST">
-        @csrf
+    <form action="{{ route('admin.user.store') }}" method="POST" enctype="multipart/form-data">
+    @csrf
+
+    <div class="mb-4">
+    <label class="block text-sm font-medium text-gray-700 mb-1">Foto Profil</label>
+    <input type="file" name="photo" accept="image/*"
+           class="w-full text-sm border border-gray-300 rounded-lg p-2">
+    @error('photo')
+        <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
+    @enderror
+</div>
         
         <div class="mb-4">
             <label class="block text-gray-700 text-sm font-semibold mb-2">Nama Lengkap</label>

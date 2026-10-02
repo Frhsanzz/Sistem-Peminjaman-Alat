@@ -59,11 +59,6 @@
             {{-- NAVIGATION --}}
             <div class="hidden items-center gap-1 rounded-full bg-white/5 p-1 md:flex">
 
-                <a href="{{ route('peminjam.dashboard') }}"
-                   class="rounded-full px-4 py-2 text-sm font-medium text-white/60
-                          transition hover:bg-white/10 hover:text-white">
-                    Beranda
-                </a>
 
                 <a href="{{ route('peminjam.katalog') }}"
                    class="rounded-full px-4 py-2 text-sm font-medium text-white

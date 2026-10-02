@@ -6,6 +6,7 @@ use App\Models\Peminjaman;
 use App\Models\Pengembalian;
 use App\Models\Alat;
 use App\Models\DetailPinjam;
+use App\Models\LogAktivitas;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -127,6 +128,60 @@ public function cekLaporan(Request $request)
         'riwayat'
     ));
 }
+// =========================
+// CETAK LAPORAN (HALAMAN PRINT)
+// =========================
+public function printLaporan(Request $request)
+{
+    $dari = $request->input('dari', now()->startOfMonth()->format('Y-m-d'));
+    $sampai = $request->input('sampai', now()->format('Y-m-d'));
+
+    $query = Peminjaman::with([
+        'user',
+        'pengembalian',
+        'detailPinjam.alat'
+    ])
+    ->whereDate('tgl_pinjam', '>=', $dari)
+    ->whereDate('tgl_pinjam', '<=', $sampai);
+
+    $ringkasan = [
+        'total_peminjaman' => (clone $query)->count(),
+        'total_disetujui'  => (clone $query)->where('status', 'disetujui')->count(),
+        'total_ditolak'    => (clone $query)->where('status', 'ditolak')->count(),
+        'total_selesai'    => (clone $query)->whereIn('status', ['selesai', 'dikembalikan'])->count(),
+        'total_denda'      => (clone $query)->get()->sum(function ($p) {
+            return $p->pengembalian->denda ?? 0;
+        }),
+    ];
+
+    $alatPalingSering = DetailPinjam::with('alat')
+        ->whereHas('peminjaman', function ($q) use ($dari, $sampai) {
+            $q->whereDate('tgl_pinjam', '>=', $dari)
+              ->whereDate('tgl_pinjam', '<=', $sampai);
+        })
+        ->get()
+        ->groupBy('alat_id')
+        ->map(function ($details) {
+            return (object) [
+                'nama_alat'      => $details->first()->alat->nama_alat ?? '-',
+                'total_dipinjam' => $details->sum('jumlah'),
+            ];
+        })
+        ->sortByDesc('total_dipinjam')
+        ->take(5)
+        ->values();
+
+    // Semua data, tanpa paginate
+    $riwayat = (clone $query)->latest('tgl_pinjam')->get();
+
+    return view('petugas.cetaklaporan.print', compact(
+        'dari',
+        'sampai',
+        'ringkasan',
+        'alatPalingSering',
+        'riwayat'
+    ));
+}
 
 
     // =========================
@@ -164,6 +219,14 @@ public function cekLaporan(Request $request)
             'status' => 'dipinjamkan'
         ]);
 
+        DB::table('log_aktivitas')->insert([
+    'user_id' => $peminjaman->user_id,
+    'peminjaman_id' => $peminjaman->id,
+    'aktivitas' => 'Menyetujui peminjaman alat.',
+    'created_at' => now(),
+    'updated_at' => now(),
+]);
+
         DB::commit();
 
         return redirect()->back()->with(
@@ -182,77 +245,77 @@ public function cekLaporan(Request $request)
 }
 
 
-    // =========================
-    // PEMANTAUAN PENGEMBALIAN
-    // =========================
-    public function indexPengembalian()
-    {
-        $peminjaman = Peminjaman::with([
-            'user',
-            'detailPinjam.alat'
-        ])
-        ->where('status', 'Dipinjam')
-        ->latest()
-        ->get();
+// =========================
+// PEMANTAUAN PENGEMBALIAN
+// =========================
+public function indexPengembalian()
+{
+    $peminjaman = Peminjaman::with([
+        'user',
+        'detailPinjam.alat'
+    ])
+    ->where('status', 'dipinjamkan')
+    ->latest()
+    ->get();
 
-        return view(
-            'petugas.pengembalian.index',
-            compact('peminjaman')
-        );
-    }
+    return view(
+        'petugas.pengembalian.index',
+        compact('peminjaman')
+    );
+}
 
 
-    // =========================
-    // PROSES PENGEMBALIAN
-    // =========================
-    public function prosesPengembalian(Request $request, $peminjamanId)
-    {
-        $request->validate([
-            'kondisi_kembali' => 'required|string',
-            'denda' => 'nullable|integer',
+// =========================
+// PROSES PENGEMBALIAN
+// =========================
+public function prosesPengembalian(Request $request, $peminjamanId)
+{
+    $request->validate([
+        'kondisi_kembali' => 'required|string',
+        'denda' => 'nullable|integer',
+    ]);
+
+    DB::beginTransaction();
+
+    try {
+        $peminjaman = Peminjaman::with('detailPinjam')
+            ->findOrFail($peminjamanId);
+
+        Pengembalian::create([
+            'peminjamanId' => $peminjaman->id,
+            'tgl_kembali' => now(),
+            'kondisi_kembali' => $request->kondisi_kembali,
+            'denda' => $request->denda ?? 0,
+            'petugas_id' => auth()->id(),
         ]);
 
-        DB::beginTransaction();
+        // Ubah status menjadi sudah dikembalikan
+        $peminjaman->update([
+            'status' => 'dikembalikan'
+        ]);
 
-        try {
-            $peminjaman = Peminjaman::with('detailPinjam')
-                ->findOrFail($peminjamanId);
+        // Kembalikan stok alat
+        foreach ($peminjaman->detailPinjam as $detail) {
+            $alat = Alat::findOrFail($detail->alat_id);
 
-            Pengembalian::create([
-                'peminjamanId' => $peminjaman->id,
-                'tgl_kembali' => now(),
-                'kondisi_kembali' => $request->kondisi_kembali,
-                'denda' => $request->denda ?? 0,
-                'petugas_id' => auth()->id(),
-            ]);
-
-            // Ubah status peminjaman menjadi selesai
-            $peminjaman->update([
-                'status' => 'selesai'
-            ]);
-
-            // Kembalikan stok alat
-            foreach ($peminjaman->detailPinjam as $detail) {
-                $alat = Alat::findOrFail($detail->alat_id);
-
-                $alat->stok += $detail->jumlah;
-                $alat->save();
-            }
-
-            DB::commit();
-
-            return redirect()->back()->with(
-                'success',
-                'Pengembalian berhasil dicatat dan stok dipulihkan.'
-            );
-
-        } catch (\Exception $e) {
-            DB::rollback();
-
-            return redirect()->back()->with(
-                'error',
-                'Terjadi kesalahan: ' . $e->getMessage()
-            );
+            $alat->stok += $detail->jumlah;
+            $alat->save();
         }
+
+        DB::commit();
+
+        return redirect()->back()->with(
+            'success',
+            'Pengembalian berhasil dicatat dan stok dipulihkan.'
+        );
+
+    } catch (\Exception $e) {
+        DB::rollback();
+
+        return redirect()->back()->with(
+            'error',
+            'Terjadi kesalahan: ' . $e->getMessage()
+        );
     }
+}
 }

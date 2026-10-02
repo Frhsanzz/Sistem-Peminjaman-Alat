@@ -9,6 +9,17 @@
         {{ session('success') }}
     </div>
 @endif
+@if(session('success'))
+    <div class="mb-4 rounded-lg bg-green-100 px-4 py-3 text-green-700">
+        {{ session('success') }}
+    </div>
+@endif
+
+@if(session('error'))
+    <div class="mb-4 rounded-lg bg-red-100 px-4 py-3 text-red-700">
+        {{ session('error') }}
+    </div>
+@endif
 
 <div class="bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
     <div class="p-5 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
@@ -35,41 +46,94 @@
         <table class="w-full text-left border-collapse">
             <thead>
                 <tr class="bg-gray-100 text-gray-600 text-sm uppercase tracking-wider">
+                    <th class="py-3 px-4 border-b">Foto</th>
                     <th class="py-3 px-4 border-b">Nama</th>
                     <th class="py-3 px-4 border-b">Email</th>
                     <th class="py-3 px-4 border-b">Role / Hak Akses</th>
                     <th class="py-3 px-4 border-b">No. HP</th>
+                    <th class="py-3 px-4 border-b">Status</th>
                     <th class="py-3 px-4 border-b">Aksi</th>
                 </tr>
             </thead>
             <tbody class="text-gray-700 text-sm">
-                @forelse($users as $user)
-                    <tr class="hover:bg-gray-50 transition">
-                        <td class="py-3 px-4 border-b font-medium text-gray-900">{{ $user->name }}</td>
-                        <td class="py-3 px-4 border-b">{{ $user->email }}</td>
-                        <td class="py-3 px-4 border-b">
-                            <span class="px-2.5 py-1 text-xs font-semibold rounded-full @if($user->role == 'admin') bg-purple-100 text-purple-800 @elseif($user->role == 'petugas') bg-blue-100 text-blue-800 @else bg-green-100 text-green-800 @endif">{{ ucfirst($user->role) }}</span>
-                        </td>
-                        <td class="py-3 px-4 border-b">{{ $user->no_hp ?? '-' }}</td>
-                        <td class="py-3 px-4 border-b">
-                            <div class="flex items-center space-x-2">
-                                <a href="{{ route('admin.user.edit', $user->id) }}" class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded text-xs font-semibold transition">Edit</a>
-                                <form action="{{ route('admin.user.destroy', $user->id) }}" method="POST" onsubmit="return confirm('Yakin ingin menghapus user ini?')">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs font-semibold transition">
-                                        Hapus
-                                    </button>
-                                </form>
-                            </div>    
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="5" class="py-4 text-center text-gray-500">Belum ada data pengguna.</td>
-                    </tr>
-                @endforelse
-            </tbody>
+    @forelse($users as $user)
+        <tr class="hover:bg-gray-50 transition">
+            <td class="py-3 px-4 border-b">
+                @if($user->foto_profil)
+    <img
+        src="{{ asset($user->foto_profil) }}"
+        alt="Foto {{ $user->name }}"
+        class="w-10 h-10 rounded-full object-cover border border-gray-200"
+    >
+@else
+    <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-xs">
+        -
+    </div>
+@endif
+
+            <td class="py-3 px-4 border-b font-medium text-gray-900">{{ $user->name }}</td>
+            <td class="py-3 px-4 border-b">{{ $user->email }}</td>
+            <td class="py-3 px-4 border-b">
+                <span class="px-2.5 py-1 text-xs font-semibold rounded-full @if($user->role == 'admin') bg-purple-100 text-purple-800 @elseif($user->role == 'petugas') bg-blue-100 text-blue-800 @else bg-green-100 text-green-800 @endif">{{ ucfirst($user->role) }}</span>
+            </td>
+            <td class="py-3 px-4 border-b">{{ $user->no_hp ?? '-' }}</td>
+            <td>
+    @if($user->is_active)
+        <span class="px-3 py-1 rounded-full bg-green-100 text-green-700 text-sm font-semibold">
+            Aktif
+        </span>
+    @else
+        <span class="px-3 py-1 rounded-full bg-red-100 text-red-700 text-sm font-semibold">
+            Nonaktif
+        </span>
+    @endif
+</td>
+            <td class="py-3 px-4 border-b">
+                <form action="{{ route('admin.user.toggle-status', $user->id) }}"
+      method="POST"
+      style="display:inline;">
+    @csrf
+    @method('PATCH')
+
+    <button type="submit"
+        class="px-3 py-2 rounded-lg text-white
+        {{ $user->is_active ? 'bg-gray-600' : 'bg-green-600' }}">
+
+        {{ $user->is_active ? 'Nonaktifkan' : 'Aktifkan' }}
+    </button>
+</form>
+                
+<div class="flex items-center space-x-2">
+    @if ($user->role !== 'admin')
+        <a href="{{ route('admin.user.edit', $user->id) }}"
+           class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded text-xs font-semibold transition">
+            Edit
+        </a>
+
+        <form action="{{ route('admin.user.destroy', $user->id) }}"
+              method="POST"
+              onsubmit="return confirm('Yakin ingin menghapus user ini?')">
+            @csrf
+            @method('DELETE')
+
+            <button type="submit"
+                    class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs font-semibold transition">
+                Hapus
+            </button>
+        </form>
+    @else
+        <span class="text-gray-500 text-xs font-semibold">
+            Admin (Dilindungi)
+        </span>
+    @endif
+</div>
+
+    @empty
+        <tr>
+            <td colspan="6" class="py-4 text-center text-gray-500">Belum ada data pengguna.</td>
+        </tr>
+    @endforelse
+</tbody>
         </table>
     </div>
     <div class="p-4 border-t border-gray-200 bg-gray-50">

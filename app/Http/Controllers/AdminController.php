@@ -118,26 +118,43 @@ class AdminController extends Controller
     }
 
     public function storeUser(Request $request)
-    {
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:6',
-            'role' => 'required|in:admin,petugas,peminjam',
-        ]);
+{
+    $request->validate([
+        'name' => 'required|string|max:255',
+        'email' => 'required|string|email|max:255|unique:users',
+        'password' => 'required|string|min:6',
+        'role' => 'required|in:admin,petugas,peminjam',
+        'no_hp' => 'nullable|string|max:20',
+        'photo' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+    ]);
 
-        User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'role' => $request->role,
-            'no_hp' => $request->no_hp,
-        ]);
+    $data = [
+        'name' => $request->name,
+        'email' => $request->email,
+        'password' => Hash::make($request->password),
+        'role' => $request->role,
+        'no_hp' => $request->no_hp,
+    ];
 
-        return redirect()
-            ->route('admin.user.index')
-            ->with('success', 'User berhasil ditambahkan.');
+    if ($request->hasFile('photo')) {
+        $file = $request->file('photo');
+
+        $filename = time() . '-' . $file->getClientOriginalName();
+
+        $file->move(
+            public_path('storage/users'),
+            $filename
+        );
+
+        $data['foto_profil'] = 'storage/users/' . $filename;
     }
+
+    User::create($data);
+
+    return redirect()
+        ->route('admin.user.index')
+        ->with('success', 'User berhasil ditambahkan.');
+}
 
     public function editUser($id)
     {
@@ -147,42 +164,143 @@ class AdminController extends Controller
     }
 
     public function updateUser(Request $request, $id)
-    {
-        $user = User::findOrFail($id);
+{
+    $user = User::findOrFail($id);
 
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users,email,' . $id,
-            'role' => 'required|in:admin,petugas,peminjam',
-        ]);
+    $request->validate([
+        'name' => 'required|string|max:255',
+        'email' => 'required|string|email|max:255|unique:users,email,' . $id,
+        'role' => 'required|in:admin,petugas,peminjam',
+        'no_hp' => 'nullable|string|max:20',
+        'password' => 'nullable|string|min:6',
+        'photo' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
+    ]);
 
-        $data = [
-            'name' => $request->name,
-            'email' => $request->email,
-            'role' => $request->role,
-            'no_hp' => $request->no_hp,
-        ];
+    $data = [
+        'name' => $request->name,
+        'email' => $request->email,
+        'role' => $request->role,
+        'no_hp' => $request->no_hp,
+    ];
 
-        if ($request->filled('password')) {
-            $data['password'] = Hash::make($request->password);
-        }
-
-        $user->update($data);
-
-        return redirect()
-            ->route('admin.user.index')
-            ->with('success', 'Data user berhasil diperbarui.');
+    // Password
+    if ($request->filled('password')) {
+        $data['password'] = Hash::make($request->password);
     }
+
+    // Foto profil
+    if ($request->hasFile('photo')) {
+
+        // Hapus foto lama
+        if ($user->foto_profil &&
+    file_exists(public_path($user->foto_profil))
+) {
+    unlink(public_path($user->foto_profil));
+}
+
+        $file = $request->file('photo');
+
+        $filename = time() . '-' . $file->getClientOriginalName();
+
+        $file->move(
+            public_path('storage/users'),
+            $filename
+        );
+
+        $data['foto_profil'] = 'storage/users/' . $filename;
+    }
+
+    $user->update($data);
+
+    return redirect()
+        ->route('admin.user.index')
+        ->with('success', 'Data user berhasil diperbarui.');
+}
 
     public function destroyUser($id)
-    {
-        $user = User::findOrFail($id);
-        $user->delete();
+{
+    $user = User::findOrFail($id);
 
+    // Admin tidak boleh menghapus akun yang sedang digunakan
+    if (auth()->id() === $user->id) {
         return redirect()
             ->route('admin.user.index')
-            ->with('success', 'User berhasil dihapus.');
+            ->with('error', 'Akun yang sedang digunakan tidak dapat dihapus.');
     }
+
+    // Cek apakah user masih memiliki proses peminjaman
+    $sedangMeminjam = $user->peminjaman()
+        ->whereIn('status', [
+            'diajukan',
+            'dipinjamkan',
+            'telat',
+        ])
+        ->exists();
+
+    if ($sedangMeminjam) {
+        return redirect()
+            ->route('admin.user.index')
+            ->with('error', 'User sedang proses peminjaman dan tidak dapat dihapus.');
+    }
+
+    $namaUser = $user->name;
+
+    // Hapus foto profil jika ada
+    if (
+        $user->foto_profil &&
+        file_exists(public_path($user->foto_profil))
+    ) {
+        unlink(public_path($user->foto_profil));
+    }
+
+    $user->delete();
+
+    // Catat aktivitas
+    \DB::table('log_aktivitas')->insert([
+        'user_id' => auth()->id(),
+        'aktivitas' => 'Menghapus user: ' . $namaUser,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    return redirect()
+        ->route('admin.user.index')
+        ->with('success', 'User berhasil dihapus.');
+}
+public function toggleStatusUser($id)
+{
+    $user = User::findOrFail($id);
+
+    // Tidak boleh menonaktifkan akun sendiri
+    if (auth()->id() === $user->id) {
+        return redirect()
+            ->route('admin.user.index')
+            ->with('error', 'Anda tidak dapat menonaktifkan akun sendiri.');
+    }
+
+    $user->is_active = !$user->is_active;
+    $user->save();
+
+    $aktivitas = $user->is_active
+        ? 'Mengaktifkan user: ' . $user->name
+        : 'Menonaktifkan user: ' . $user->name;
+
+    \DB::table('log_aktivitas')->insert([
+        'user_id' => auth()->id(),
+        'aktivitas' => $aktivitas,
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    return redirect()
+        ->route('admin.user.index')
+        ->with(
+            'success',
+            $user->is_active
+                ? 'User berhasil diaktifkan.'
+                : 'User berhasil dinonaktifkan.'
+        );
+}
 
 
     // ==========================================
@@ -460,6 +578,27 @@ class AdminController extends Controller
         );
     }
 
+    public function editPeminjaman($id)
+{
+    $peminjaman = Peminjaman::with([
+        'user',
+        'detailPinjam.alat'
+    ])->findOrFail($id);
+
+    $users = User::where('role', 'peminjam')
+        ->orderBy('name')
+        ->get();
+
+    $alat = Alat::orderBy('nama_alat')
+        ->get();
+
+    return view('admin.peminjaman.edit', compact(
+        'peminjaman',
+        'users',
+        'alat'
+    ));
+}
+
     public function storePeminjaman(Request $request)
     {
         $request->validate([
@@ -522,6 +661,93 @@ class AdminController extends Controller
                 ->with('error', $e->getMessage());
         }
     }
+    public function updatePeminjaman(Request $request, $id)
+{
+    $request->validate([
+        'user_id' => 'required|exists:users,id',
+        'tgl_pinjam' => 'required|date',
+        'tgl_kembali_plan' => 'required|date|after_or_equal:tgl_pinjam',
+        'alat_id' => 'required|array|min:1',
+        'alat_id.*' => 'required|exists:alat,id',
+        'jumlah' => 'required|array|min:1',
+        'jumlah.*' => 'required|integer|min:1',
+    ]);
+
+    DB::beginTransaction();
+
+    try {
+        $peminjaman = Peminjaman::with('detailPinjam')->findOrFail($id);
+
+        /*
+         * 1. Kembalikan stok dari detail lama
+         */
+        foreach ($peminjaman->detailPinjam as $detail) {
+            $alatLama = Alat::find($detail->alat_id);
+
+            if ($alatLama) {
+                $alatLama->increment('stok', $detail->jumlah);
+            }
+        }
+
+        /*
+         * 2. Hapus detail lama
+         */
+        $peminjaman->detailPinjam()->delete();
+
+        /*
+         * 3. Update data utama peminjaman
+         */
+        $peminjaman->update([
+            'user_id' => $request->user_id,
+            'tgl_pinjam' => $request->tgl_pinjam,
+            'tgl_kembali_plan' => $request->tgl_kembali_plan,
+        ]);
+
+        /*
+         * 4. Simpan detail baru dan kurangi stok
+         */
+        foreach ($request->alat_id as $index => $alatId) {
+
+            $jumlahPinjam = $request->jumlah[$index];
+
+            $alat = Alat::findOrFail($alatId);
+
+            if ($alat->stok < $jumlahPinjam) {
+                throw new \Exception(
+                    "Stok alat '{$alat->nama_alat}' tidak mencukupi."
+                );
+            }
+
+            $peminjaman->detailPinjam()->create([
+                'alat_id' => $alatId,
+                'jumlah' => $jumlahPinjam,
+            ]);
+
+            $alat->decrement('stok', $jumlahPinjam);
+        }
+
+        DB::commit();
+
+        return redirect()
+            ->route('admin.peminjaman.index')
+            ->with(
+                'success',
+                'Data peminjaman berhasil diperbarui.'
+            );
+
+    } catch (\Exception $e) {
+
+        DB::rollBack();
+
+        return redirect()
+            ->back()
+            ->withInput()
+            ->with(
+                'error',
+                'Data peminjaman gagal diperbarui: ' . $e->getMessage()
+            );
+    }
+}
     
 // ==========================================
     // HAPUS PEMINJAMAN
