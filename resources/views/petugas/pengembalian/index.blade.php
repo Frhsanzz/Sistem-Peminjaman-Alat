@@ -1,96 +1,296 @@
 @extends('layouts.app')
+
 @section('title', 'Pemantauan Pengembalian - Panel Petugas')
 @section('header-title', 'Status Pengembalian')
+
 @section('content')
 
 <div class="p-6">
 
-    <h1 class="text-2xl font-bold mb-6">
-        Daftar Pengembalian
-    </h1>
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">
+                Pemantauan Pengembalian
+            </h1>
 
+            <p class="text-sm text-gray-500 mt-1">
+                Pantau peminjaman yang sedang berjalan dan proses pengembaliannya.
+            </p>
+        </div>
+
+        <div class="text-sm text-gray-500">
+            Hari ini:
+            <span class="font-semibold text-gray-800">
+                {{ now('Asia/Jakarta')->format('d-m-Y') }}
+            </span>
+        </div>
+    </div>
+
+    {{-- Notifikasi sukses --}}
     @if(session('success'))
-        <div class="mb-4 p-3 bg-green-100 text-green-700 rounded">
+        <div class="mb-4 p-4 bg-green-50 border border-green-200 text-green-700 rounded-lg">
             {{ session('success') }}
         </div>
     @endif
 
+    {{-- Notifikasi error --}}
     @if(session('error'))
-        <div class="mb-4 p-3 bg-red-100 text-red-700 rounded">
+        <div class="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
             {{ session('error') }}
         </div>
     @endif
 
-    <div class="bg-white rounded-lg shadow overflow-hidden">
 
-        <table class="w-full">
-            <thead>
-                <tr class="border-b">
-                    <th class="p-3 text-left">No</th>
-                    <th class="p-3 text-left">Peminjam</th>
-                    <th class="p-3 text-left">Tanggal Pinjam</th>
-                    <th class="p-3 text-left">Rencana Kembali</th>
-                    <th class="p-3 text-left">Status</th>
-                    <th class="p-3 text-left">Aksi</th>
-                </tr>
-            </thead>
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
 
-            <tbody>
-                @forelse($peminjaman as $item)
-                    <tr class="border-b">
+        <div class="p-5 border-b border-gray-200 bg-gray-50">
 
-                        <td class="p-3">
-                            {{ $loop->iteration }}
-                        </td>
+            <h3 class="text-lg font-bold text-gray-800">
+                Daftar Peminjaman
+            </h3>
 
-                        <td class="p-3">
-                            {{ $item->user->name ?? '-' }}
-                        </td>
+            <p class="text-sm text-gray-500 mt-1">
+                Hanya peminjaman yang telah disetujui dan belum dikembalikan.
+            </p>
 
-                        <td class="p-3">
-                            {{ $item->tgl_pinjam ?? '-' }}
-                        </td>
+        </div>
 
-                        <td class="p-3">
-                            {{ $item->tgl_kembali_plan ?? '-' }}
-                        </td>
 
-                        <td class="p-3">
-                            {{ $item->status ?? '-' }}
-                        </td>
+        <div class="overflow-x-auto">
 
-                        <td class="p-3">
+            <table class="w-full min-w-[1000px] text-left border-collapse">
 
-                            <form
-                                action="{{ route('petugas.pengembalian.proses', $item->id) }}"
-                                method="POST"
+                <thead>
+                    <tr class="bg-gray-100 text-gray-600 text-xs uppercase tracking-wider">
+
+                        <th class="py-3 px-4 border-b">
+                            No
+                        </th>
+
+                        <th class="py-3 px-4 border-b">
+                            Peminjam
+                        </th>
+
+                        <th class="py-3 px-4 border-b">
+                            Tanggal Pinjam
+                        </th>
+
+                        <th class="py-3 px-4 border-b">
+                            Rencana Kembali
+                        </th>
+
+                        <th class="py-3 px-4 border-b">
+                            Status
+                        </th>
+
+                        <th class="py-3 px-4 border-b">
+                            Aksi
+                        </th>
+
+                    </tr>
+                </thead>
+
+
+                <tbody class="text-gray-700 text-sm">
+
+                    @forelse($peminjaman as $item)
+
+                        @php
+
+                            $hariIni = now('Asia/Jakarta')->startOfDay();
+
+                            $rencana = $item->tgl_kembali_plan
+                                ? \Carbon\Carbon::parse($item->tgl_kembali_plan)->startOfDay()
+                                : null;
+
+                            /*
+                             * Tentukan status tampilan.
+                             *
+                             * Kalau sudah dikembalikan:
+                             * Dikembalikan
+                             *
+                             * Kalau belum dikembalikan:
+                             * tanggal rencana < hari ini = Terlambat
+                             * selain itu = Dipinjamkan
+                             */
+
+                            if ($item->pengembalian) {
+
+                                $statusTampilan = 'dikembalikan';
+
+                            } elseif ($rencana && $rencana->lt($hariIni)) {
+
+                                $statusTampilan = 'telat';
+
+                            } else {
+
+                                $statusTampilan = 'dipinjamkan';
+
+                            }
+
+                        @endphp
+
+
+                        <tr class="hover:bg-gray-50 transition">
+
+                            {{-- NO --}}
+                            <td class="py-4 px-4 border-b">
+                                {{ $loop->iteration }}
+                            </td>
+
+
+                            {{-- PEMINJAM --}}
+                            <td class="py-4 px-4 border-b">
+
+                                <div class="font-semibold text-gray-900">
+                                    {{ $item->user->name ?? '-' }}
+                                </div>
+
+                            </td>
+
+
+                            {{-- TANGGAL PINJAM --}}
+                            <td class="py-4 px-4 border-b whitespace-nowrap">
+
+                                {{ $item->tgl_pinjam
+                                    ? \Carbon\Carbon::parse($item->tgl_pinjam)->format('d-m-Y')
+                                    : '-'
+                                }}
+
+                            </td>
+
+
+                            {{-- RENCANA KEMBALI --}}
+                            <td class="py-4 px-4 border-b whitespace-nowrap">
+
+                                {{ $item->tgl_kembali_plan
+                                    ? \Carbon\Carbon::parse($item->tgl_kembali_plan)->format('d-m-Y')
+                                    : '-'
+                                }}
+
+                            </td>
+
+
+                            {{-- STATUS --}}
+                            <td class="py-4 px-4 border-b">
+
+                                @if($statusTampilan === 'dipinjamkan')
+
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full
+                                                 text-xs font-semibold
+                                                 bg-blue-100 text-blue-700">
+
+                                        Dipinjamkan
+
+                                    </span>
+
+                                    <div class="text-xs text-gray-400 mt-1">
+                                        Belum jatuh tempo
+                                    </div>
+
+
+                                @elseif($statusTampilan === 'telat')
+
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full
+                                                 text-xs font-semibold
+                                                 bg-red-100 text-red-700">
+
+                                        Terlambat
+
+                                    </span>
+
+                                    <div class="text-xs text-red-500 mt-1">
+                                        Melewati tanggal kembali
+                                    </div>
+
+
+                                @elseif($statusTampilan === 'dikembalikan')
+
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full
+                                                 text-xs font-semibold
+                                                 bg-emerald-100 text-emerald-700">
+
+                                        Dikembalikan
+
+                                    </span>
+
+                                @endif
+
+                            </td>
+
+
+                            {{-- AKSI --}}
+                            <td class="py-4 px-4 border-b">
+
+                                @if($statusTampilan === 'dipinjamkan' || $statusTampilan === 'telat')
+
+                                    <form
+                                        action="{{ route('petugas.pengembalian.proses', $item->id) }}"
+                                        method="POST"
+                                        onsubmit="return confirm('Yakin barang ini sudah dikembalikan?')"
+                                    >
+
+                                        @csrf
+
+                                        {{-- Tidak ada denda otomatis --}}
+                                        <input
+                                            type="hidden"
+                                            name="kondisi_kembali"
+                                            value="baik"
+                                        >
+
+                                        <button
+                                            type="submit"
+                                            class="px-4 py-2 bg-green-600 hover:bg-green-700
+                                                   text-white rounded-lg text-xs font-semibold
+                                                   transition"
+                                        >
+                                            Proses Pengembalian
+                                        </button>
+
+                                    </form>
+
+                                @else
+
+                                    <span class="text-xs text-gray-400">
+                                        Sudah diproses
+                                    </span>
+
+                                @endif
+
+                            </td>
+
+                        </tr>
+
+
+                    @empty
+
+                        <tr>
+
+                            <td
+                                colspan="6"
+                                class="py-10 text-center text-gray-500"
                             >
-                                @csrf
 
-                                <button
-                                    type="submit"
-                                    class="px-3 py-2 bg-green-600 text-white rounded"
-                                >
-                                    Proses Pengembalian
-                                </button>
-                            </form>
+                                <div class="font-semibold">
+                                    Tidak ada peminjaman yang sedang dipinjam.
+                                </div>
 
-                        </td>
+                                <div class="text-xs mt-1">
+                                    Semua peminjaman sudah dikembalikan atau belum disetujui.
+                                </div>
 
-                    </tr>
+                            </td>
 
-                @empty
+                        </tr>
 
-                    <tr>
-                        <td colspan="6" class="p-6 text-center">
-                            Tidak ada peminjaman yang sedang dipinjam.
-                        </td>
-                    </tr>
+                    @endforelse
 
-                @endforelse
-            </tbody>
+                </tbody>
 
-        </table>
+            </table>
+
+        </div>
 
     </div>
 

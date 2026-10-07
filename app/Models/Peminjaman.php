@@ -15,7 +15,8 @@ class Peminjaman extends Model
         'user_id',
         'tgl_pinjam',
         'tgl_kembali_plan',
-        'status'
+        'status',
+        'permintaan_pengembalian'
     ];
 
     protected function casts(): array
@@ -23,6 +24,7 @@ class Peminjaman extends Model
         return [
             'tgl_pinjam' => 'date:Y-m-d',
             'tgl_kembali_plan' => 'date:Y-m-d',
+            'permintaan_pengembalian' => 'boolean',
         ];
     }
 
@@ -42,39 +44,52 @@ class Peminjaman extends Model
     }
 
     // Menentukan tampilan badge berdasarkan status peminjaman
-    public function statusBadge(): array
+   
+public function statusBadge(): array
+{
+    return match ($this->status) {
+
+        'diajukan' => [
+            'label' => 'Menunggu Persetujuan',
+            'color' => 'bg-yellow-100 text-yellow-700',
+        ],
+
+        'dipinjamkan' => [
+            'label' => 'Sedang Dipinjam',
+            'color' => 'bg-blue-100 text-blue-700',
+        ],
+
+        'telat' => [
+            'label' => 'Terlambat',
+            'color' => 'bg-red-100 text-red-700',
+        ],
+
+        'dikembalikan' => [
+            'label' => 'Sudah Dikembalikan',
+            'color' => 'bg-gray-100 text-gray-700',
+        ],
+
+        'ditolak' => [
+            'label' => 'Ditolak',
+            'color' => 'bg-red-100 text-red-700',
+        ],
+
+        default => [
+            'label' => ucfirst($this->status ?? 'Tidak Diketahui'),
+            'color' => 'bg-gray-100 text-gray-700',
+        ],
+    };
+}
+    public function getStatusTampilAttribute(): string
     {
-        return match ($this->status) {
+        if ($this->status === 'dipinjamkan'
+            && $this->tgl_kembali_plan
+            && $this->tgl_kembali_plan->lt(today())) {
+            return 'telat';
+        }
 
-            'diajukan' => [
-                'label' => 'Menunggu Persetujuan',
-                'color' => 'bg-yellow-100 text-yellow-700',
-            ],
-
-            'disetujui' => [
-                'label' => 'Disetujui',
-                'color' => 'bg-green-100 text-green-700',
-            ],
-
-            'ditolak' => [
-                'label' => 'Ditolak',
-                'color' => 'bg-red-100 text-red-700',
-            ],
-
-            'dipinjam' => [
-                'label' => 'Sedang Dipinjam',
-                'color' => 'bg-blue-100 text-blue-700',
-            ],
-
-            'dikembalikan' => [
-                'label' => 'Sudah Dikembalikan',
-                'color' => 'bg-gray-100 text-gray-700',
-            ],
-
-            default => [
-                'label' => ucfirst($this->status ?? 'Tidak Diketahui'),
-                'color' => 'bg-gray-100 text-gray-700',
-            ],
-        };
+        return $this->status;
     }
+
+
 }

@@ -27,7 +27,7 @@
         <div class="flex items-center justify-between gap-4 rounded-full border border-white/10
                     bg-white/5 px-4 py-2.5 shadow-2xl shadow-black/40 backdrop-blur-xl">
 
-            <a href="{{ route('peminjam.dashboard') }}" class="flex items-center gap-3">
+            <a href="{{ route('peminjam.katalog') }}" class="flex items-center gap-3">
 
                 <div class="flex h-10 w-10 items-center justify-center rounded-full
                             bg-gradient-to-br from-blue-500 to-indigo-600

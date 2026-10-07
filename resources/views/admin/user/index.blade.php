@@ -104,12 +104,12 @@
 </form>
                 
 <div class="flex items-center space-x-2">
-    @if ($user->role !== 'admin')
+    
         <a href="{{ route('admin.user.edit', $user->id) }}"
            class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded text-xs font-semibold transition">
             Edit
         </a>
-
+    @if ($user->role !== 'admin')
         <form action="{{ route('admin.user.destroy', $user->id) }}"
               method="POST"
               onsubmit="return confirm('Yakin ingin menghapus user ini?')">

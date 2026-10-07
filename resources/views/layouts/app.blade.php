@@ -209,6 +209,48 @@
             opacity: 1;
             transform: translateX(2px);
         }
+        
+/* DROPDOWN NOTIFIKASI */
+.notification-wrapper {
+    position: relative;
+}
+
+/* Panel notifikasi */
+.notification-dropdown {
+    z-index: 100;
+    max-height: min(450px, calc(100vh - 100px));
+    overflow: hidden;
+}
+
+/* Daftar aktivitas */
+.notification-dropdown > div:nth-child(2) {
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+/* Hilangkan tanda panah bawaan details */
+.notification-wrapper > summary::-webkit-details-marker {
+    display: none;
+}
+
+.notification-wrapper > summary {
+    list-style: none;
+}
+
+/* Pastikan panel berada di atas konten */
+header {
+    position: relative;
+    z-index: 100;
+}
+
+/* Tampilan layar kecil */
+@media (max-width: 480px) {
+    .notification-dropdown {
+        width: min(320px, calc(100vw - 30px));
+    }
+}
+
+        
     </style>
 </head>
 
@@ -635,87 +677,157 @@
                 </div>
 
 
-                <!-- ================================================= -->
-                <!-- LOGOUT UNIK -->
-                <!-- ================================================= -->
+                
+<!-- NOTIFIKASI DAN LOGOUT -->
+<div class="flex items-center gap-3">
 
-                <form action="{{ route('logout') }}" method="POST">
+   
+{{-- NOTIFIKASI ADMIN --}}
+@if(auth()->user()->role === 'admin')
+    <div class="relative">
+        <details class="notification-wrapper relative">
+            {{-- Tombol lonceng --}}
+            <summary
+                class="list-none cursor-pointer relative p-2 rounded-lg
+                       hover:bg-gray-100 transition"
+                aria-label="Notifikasi aktivitas"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg"
+                     class="w-6 h-6 text-gray-700"
+                     fill="none"
+                     viewBox="0 0 24 24"
+                     stroke="currentColor">
+                    <path stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M15 17h5l-1.4-1.4A2
+                          2 0 0118 14.2V11a6
+                          6 0 00-4-5.7V5a2
+                          2 0 10-4 0v.3A6
+                          6 0 006 11v3.2a2
+                          2 0 01-.6 1.4L4
+                          17h5m6 0v1a3 3
+                          0 11-6 0v-1m6 0H9"/>
+                </svg>
 
-                    @csrf
+                @if(isset($aktivitasTerbaru) && $aktivitasTerbaru->count())
+                    <span class="absolute top-1 right-1
+                                 w-2 h-2 bg-red-500 rounded-full">
+                    </span>
+                @endif
+            </summary>
 
-                    <button
-                        type="submit"
-                        class="logout-button group relative flex items-center gap-3
-                               px-3 py-2 rounded-xl
-                               text-gray-600 bg-gray-100
-                               border border-gray-200
-                               hover:bg-red-50
-                               hover:border-red-200
-                               hover:text-red-600">
+            {{-- Dropdown notifikasi --}}
+            <div class="notification-dropdown
+                        absolute right-0 top-full mt-3
+                        w-80 max-w-[calc(100vw-30px)]
+                        bg-white rounded-xl shadow-xl
+                        border border-gray-200">
 
-                        <!-- Glow -->
-                        <span class="logout-glow"></span>
+                <div class="p-4 border-b font-bold">
+                    Aktivitas Terbaru
+                </div>
 
+                <div class="max-h-80 overflow-y-auto">
+                    @forelse(($aktivitasTerbaru ?? collect()) as $aktivitas)
+                        <div class="p-3 border-b">
+                            <p class="font-semibold text-sm">
+                                {{ $aktivitas->nama_user ?? 'Pengguna' }}
+                            </p>
 
-                        <!-- Icon -->
-                        <span
-                            class="logout-icon-wrapper relative z-10
-                                   flex items-center justify-center
-                                   w-8 h-8 rounded-lg bg-white">
+                            <p class="text-xs text-blue-600">
+                                {{ ucfirst($aktivitas->role_user ?? '-') }}
+                            </p>
 
-                            <svg
-                                class="logout-icon w-5 h-5"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24">
+                            <p class="text-sm text-gray-600 mt-1">
+                                {{ $aktivitas->aktivitas }}
+                            </p>
 
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4" />
+                            <p class="text-xs text-gray-400 mt-1">
+                                {{ $aktivitas->created_at
+                                    ? \Carbon\Carbon::parse($aktivitas->created_at)->diffForHumans()
+                                    : '-' }}
+                            </p>
+                        </div>
+                    @empty
+                        <p class="p-4 text-sm text-gray-500">
+                            Belum ada aktivitas.
+                        </p>
+                    @endforelse
+                </div>
 
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M10 17l5-5-5-5M15 12H3" />
-
-                            </svg>
-
-                        </span>
-
-
-                        <!-- Text -->
-                        <span
-                            class="logout-text relative z-10
-                                   font-semibold text-sm">
-
-                            Keluar
-
-                        </span>
+                <a href="{{ route('admin.log-aktivitas') }}"
+                   class="block text-center p-3 text-sm
+                          text-blue-600 hover:bg-gray-50">
+                    Lihat semua aktivitas
+                </a>
+            </div>
+        </details>
+    </div>
+@endif
 
 
-                        <!-- Arrow -->
-                        <svg
-                            class="logout-arrow relative z-10
-                                   w-4 h-4
-                                   opacity-0 -translate-x-2"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24">
+    {{-- TOMBOL LOGOUT --}}
+    <form action="{{ route('logout') }}"
+          method="POST"
+          onsubmit="return confirm('Apakah Anda yakin ingin logout?')">
 
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M9 5l7 7-7 7" />
+        @csrf
 
-                        </svg>
+        <button
+            type="submit"
+            class="logout-button group relative flex items-center gap-3
+                   px-3 py-2 rounded-xl
+                   text-gray-600 bg-gray-100
+                   border border-gray-200
+                   hover:bg-red-50
+                   hover:border-red-200
+                   hover:text-red-600">
 
-                    </button>
+            <span class="logout-glow"></span>
 
-                </form>
+            <span class="logout-icon-wrapper relative z-10
+                         flex items-center justify-center
+                         w-8 h-8 rounded-lg bg-white">
+
+                <svg class="logout-icon w-5 h-5"
+                     fill="none"
+                     stroke="currentColor"
+                     viewBox="0 0 24 24">
+
+                    <path stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M15 3h4a2 2 0 012 2v14a2
+                          2 0 01-2 2h-4"/>
+
+                    <path stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M10 17l5-5-5-5M15 12H3"/>
+                </svg>
+            </span>
+
+            <span class="logout-text relative z-10
+                         font-semibold text-sm">
+                Keluar
+            </span>
+
+            <svg class="logout-arrow relative z-10
+                        w-4 h-4 opacity-0 -translate-x-2"
+                 fill="none"
+                 stroke="currentColor"
+                 viewBox="0 0 24 24">
+
+                <path stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 5l7 7-7 7"/>
+            </svg>
+        </button>
+    </form>
+</div>
+
 
             </header>
 

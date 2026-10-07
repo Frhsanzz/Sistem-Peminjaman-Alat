@@ -67,6 +67,23 @@
                        required
                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
             </div>
+             {{-- Jumlah Rusak --}}
+            <div>
+                <label for="jumlah_rusak" class="block text-gray-700 text-sm font-semibold mb-2">
+                    Jumlah Rusak
+                </label>
+
+                <input type="number"
+                       name="jumlah_rusak"
+                       id="jumlah_rusak"
+                       min="0"
+                       value="{{ old('jumlah_rusak', $alat->jumlah_rusak ?? 0) }}"
+                       class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+
+                @error('jumlah_rusak')
+                    <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
+                @enderror
+            </div>
 
             <div>
                 <label class="block text-gray-700 text-sm font-semibold mb-2">

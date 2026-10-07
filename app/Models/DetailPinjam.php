@@ -7,23 +7,26 @@ use Illuminate\Database\Eloquent\Relations\belongsTo;
 
 class DetailPinjam extends Model
 {
+    
     protected $table = 'detail_pinjam';
 
     protected $fillable = [
-        'peminjam_id', 'alat_id', 'jumlah'
+        'peminjaman_id',
+        'alat_id',
+        'jumlah',
     ];
 
-    protected function casts(): array {
-        return [
-            'jumlah' => 'integer',
-        ];
+    protected $casts = [
+        'jumlah' => 'integer',
+    ];
+
+    public function peminjaman(): BelongsTo
+    {
+        return $this->belongsTo(Peminjaman::class, 'peminjaman_id');
     }
 
-    public function peminjaman(): BelongsTo {
-        return $this->belongsTo(Peminjaman::class);
-    }
-
-    public function alat(): BelongsTo {
-        return $this->belongsTo(Alat::class);
+    public function alat(): BelongsTo
+    {
+        return $this->belongsTo(Alat::class, 'alat_id');
     }
 }

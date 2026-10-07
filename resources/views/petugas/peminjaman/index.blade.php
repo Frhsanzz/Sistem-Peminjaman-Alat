@@ -116,7 +116,7 @@
 
                                         {{-- Setujui --}}
                                         <form
-                                            action="{{ route('petugas.peminjam.setujui', $item->id) }}"
+                                            action="{{ route('petugas.peminjaman.setujui', $item->id) }}"
                                             method="POST">
 
                                             @csrf
@@ -132,7 +132,7 @@
 
                                         {{-- Tolak --}}
                                         <form
-                                            action="{{ route('petugas.peminjam.tolak', $item->id) }}"
+                                            action="{{ route('petugas.peminjaman.tolak', $item->id) }}"
                                             method="POST">
 
                                             @csrf

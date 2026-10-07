@@ -191,25 +191,34 @@ class AdminController extends Controller
     // Foto profil
     if ($request->hasFile('photo')) {
 
-        // Hapus foto lama
-        if ($user->foto_profil &&
-    file_exists(public_path($user->foto_profil))
-) {
-    unlink(public_path($user->foto_profil));
-}
-
         $file = $request->file('photo');
 
+        // Pastikan folder tersedia
+        $folder = public_path('storage/users');
+
+        if (!file_exists($folder)) {
+            mkdir($folder, 0755, true);
+        }
+
+        // Hapus foto lama jika ada
+        if (
+            $user->foto_profil &&
+            file_exists(public_path($user->foto_profil))
+        ) {
+            unlink(public_path($user->foto_profil));
+        }
+
+        // Buat nama file baru
         $filename = time() . '-' . $file->getClientOriginalName();
 
-        $file->move(
-            public_path('storage/users'),
-            $filename
-        );
+        // Pindahkan file
+        $file->move($folder, $filename);
 
+        // Simpan path ke database
         $data['foto_profil'] = 'storage/users/' . $filename;
     }
 
+    // Update user
     $user->update($data);
 
     return redirect()
@@ -395,28 +404,86 @@ public function toggleStatusUser($id)
     // ==========================================
 
     public function indexAlat(Request $request)
-    {
-        $search = $request->input('search');
+{
+    $search = $request->query('search');
+ 
+    // Filter pencarian: nama alat atau nama kategori
+    $cari = fn ($query) => $query->when($search, fn ($q) =>
+        $q->where(function ($w) use ($search) {
+            $w->where('nama_alat', 'like', "%{$search}%")
+              ->orWhereHas('kategori', fn ($k) => $k->where('nama_kategori', 'like', "%{$search}%"));
+        })
+    );
+ 
+    // Tabel "Baik": alat yang masih punya unit baik (stok - jumlah_rusak > 0)
+    $alatBaik = Alat::with('kategori')
+        ->whereRaw('stok - jumlah_rusak > 0')
+        ->tap($cari)
+        ->latest('id')
+        ->paginate(5)
+        ->withQueryString();
+ 
+    // Tabel "Rusak": alat yang punya unit rusak
+    $alatRusak = Alat::with('kategori')
+        ->where('jumlah_rusak', '>', 0)
+        ->tap($cari)
+        ->latest('id')
+        ->get();
+ 
+    $totalRusak = (int) Alat::sum('jumlah_rusak');
+    $totalBaik  = (int) Alat::sum('stok') - $totalRusak;
+ 
+    return view('admin.alat.index', compact('alatBaik', 'alatRusak', 'totalBaik', 'totalRusak'));
+}
 
-        $alat = Alat::with('kategori')
-            ->when($search, function ($query, $search) {
-                return $query->where('nama_alat', 'like', "%{$search}%")
-                    ->orWhere('status_kondisi', 'like', "%{$search}%")
-                    ->orWhereHas('kategori', function ($q) use ($search) {
-                        $q->where(
-                            'nama_kategori',
-                            'like',
-                            "%{$search}%"
-                        );
-                    });
-            })
-            ->latest()
-            ->paginate(10)
-            ->withQueryString();
+public function perbaikiAlat(Request $request, $id)
+{
+    $alat = Alat::findOrFail($id);
 
-        return view('admin.alat.index', compact('alat', 'search'));
+    if ($alat->jumlah_rusak < 1) {
+        return back()->with('error', 'Alat ini tidak memiliki unit rusak.');
     }
 
+    $data = $request->validate([
+        'jumlah' => ['required', 'integer', 'min:1', 'max:' . $alat->jumlah_rusak],
+    ], [
+        'jumlah.required' => 'Jumlah wajib diisi.',
+        'jumlah.min'      => 'Jumlah minimal 1 unit.',
+        'jumlah.max'      => 'Jumlah tidak boleh lebih dari ' . $alat->jumlah_rusak . ' unit rusak.',
+    ]);
+
+    DB::transaction(function () use ($alat, $data) {
+        $alat->decrement('jumlah_rusak', $data['jumlah']);
+        $alat->refresh();
+
+        // semua unit sudah baik: bersihkan info kerusakan
+        if ($alat->jumlah_rusak === 0) {
+            $alat->tanggal_rusak = null;
+            $alat->keterangan_rusak = null;
+        }
+
+        $alat->syncKondisi(); // update status_kondisi + save()
+    });
+
+    return redirect()
+        ->route('admin.alat.index')
+        ->with('success', "{$data['jumlah']} unit {$alat->nama_alat} berhasil diperbaiki.");
+}
+public function getKondisiLabelAttribute(): array
+{
+    return match (true) {
+        $this->jumlah_rusak <= 0            => ['Baik', 'badge-baik'],
+        $this->jumlah_rusak >= $this->stok  => ['Rusak semua', 'badge-rusak'],
+        default                             => ['Sebagian rusak', 'badge-sebagian'],
+    };
+}
+ 
+public function showAlat($id)
+{
+    $alat = Alat::with('kategori')->findOrFail($id);
+ 
+    return view('admin.alat.show', compact('alat'));
+}
     public function createAlat()
     {
         $kategori = Kategori::all();
@@ -424,38 +491,55 @@ public function toggleStatusUser($id)
         return view('admin.alat.create', compact('kategori'));
     }
 
-    public function storeAlat(Request $request)
-    {
-        $request->validate([
-            'nama_alat' => 'required|string|max:255',
-            'kategori_id' => 'required|exists:kategori,id',
-            'stok' => 'required|integer|min:0',
-            'status_kondisi' => 'required|string|max:100',
-            'deskripsi' => 'nullable|string',
-            'gambar' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
-        ]);
+    
+public function storeAlat(Request $request)
+{
+    // Cek nama alat yang sudah terdaftar
+    $namaAlat = trim($request->nama_alat ?? '');
 
-        $data = $request->all();
+    $sudahAda = Alat::whereRaw(
+        'LOWER(nama_alat) = ?',
+        [strtolower($namaAlat)]
+    )->exists();
 
-        if ($request->hasFile('gambar')) {
-            $file = $request->file('gambar');
-
-            $filename = time() . '-' . $file->getClientOriginalName();
-
-            $file->move(
-                public_path('storage/alat'),
-                $filename
-            );
-
-            $data['gambar'] = 'storage/alat/' . $filename;
-        }
-
-        Alat::create($data);
-
+    if ($sudahAda) {
         return redirect()
-            ->route('admin.alat.index')
-            ->with('success', 'Data alat berhasil ditambahkan.');
+            ->back()
+            ->withInput()
+            ->with('error', "Alat {$namaAlat} sudah ada.");
     }
+
+    // Validasi data
+    $request->validate([
+        'nama_alat' => 'required|string|max:255',
+        'kategori_id' => 'required|exists:kategori,id',
+        'stok' => 'required|integer|min:0',
+        'status_kondisi' => 'required|string|max:100',
+        'deskripsi' => 'nullable|string',
+        'gambar' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+    ]);
+
+    $data = $request->all();
+
+    if ($request->hasFile('gambar')) {
+        $file = $request->file('gambar');
+
+        $filename = time() . '-' . $file->getClientOriginalName();
+
+        $file->move(
+            public_path('storage/alat'),
+            $filename
+        );
+
+        $data['gambar'] = 'storage/alat/' . $filename;
+    }
+
+    Alat::create($data);
+
+    return redirect()
+        ->route('admin.alat.index')
+        ->with('success', 'Data alat berhasil ditambahkan.');
+}
 
     public function editAlat($id)
     {

@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\PetugasController;
 use App\Http\Controllers\PeminjamanController;
+use App\Http\Controllers\PengembalianController;
 use App\Http\Controllers\LogAktivitasController;
 use App\Http\Controllers\AuthController;
 use App\Models\Pengembalian;
@@ -86,6 +87,10 @@ Route::middleware(['auth', 'role:admin'])
         Route::get('/alat/create', [AdminController::class, 'createAlat'])
             ->name('alat.create');
 
+        Route::get('/alat/{id}', [AdminController::class, 'showAlat'])
+        ->whereNumber('id')
+        ->name('alat.show');
+
         Route::post('/alat', [AdminController::class, 'storeAlat'])
             ->name('alat.store');
 
@@ -98,7 +103,9 @@ Route::middleware(['auth', 'role:admin'])
         Route::delete('/alat/{id}', [AdminController::class, 'destroyAlat'])
             ->name('alat.destroy');
 
-
+        Route::post('/alat/{id}/perbaiki', [AdminController::class, 'perbaikiAlat'])
+            ->whereNumber('id')
+            ->name('alat.perbaiki');
         // =================================================
         // CRUD USER
         // =================================================
@@ -176,169 +183,52 @@ Route::delete('/peminjaman/{id}', [AdminController::class, 'destroyPeminjaman'])
 // PENGEMBALIAN ADMIN
 // =====================================================
 
-// Daftar pengembalian
-Route::get('/pengembalian', function () {
+Route::get('/pengembalian', [PengembalianController::class, 'index'])
+    ->name('pengembalian.index');
 
-    $keyword = request('q');
+Route::get('/pengembalian/create', [PengembalianController::class, 'create'])
+    ->name('pengembalian.create');
 
-    $pengembalian = Pengembalian::with([
-        'peminjaman.user',
-        'petugas'
-    ])
-    ->when($keyword, function ($query) use ($keyword) {
-        $query->whereHas('peminjaman.user', function ($q) use ($keyword) {
-            $q->where('name', 'like', '%' . $keyword . '%');
-        });
-    })
-    ->latest()
-    ->paginate(10)
-    ->withQueryString();
+Route::post('/pengembalian', [PengembalianController::class, 'store'])
+    ->name('pengembalian.store');
 
-    return view(
-        'admin.pengembalian.index',
-        compact('pengembalian', 'keyword')
-    );
+Route::get('/pengembalian/{id}', [PengembalianController::class, 'show'])
+    ->name('pengembalian.show');
 
-})->name('pengembalian.index');
+Route::get('/pengembalian/{id}/edit', [PengembalianController::class, 'edit'])
+    ->name('pengembalian.edit');
 
+Route::put('/pengembalian/{id}', [PengembalianController::class, 'update'])
+    ->name('pengembalian.update');
+
+Route::delete('/pengembalian/{id}', [PengembalianController::class, 'destroy'])
+    ->name('pengembalian.destroy');
 
 // =====================================================
-// TAMBAH PENGEMBALIAN
+// LOG AKTIVITAS ADMIN
 // =====================================================
 
-Route::get('/pengembalian/create', function () {
-
-    $peminjaman = \App\Models\Peminjaman::with('user')
-        ->where('status', 'dipinjamkan')
-        ->latest()
-        ->get();
-
-    $petugas = User::whereIn('role', ['petugas', 'admin'])
-        ->orderBy('name')
-        ->get();
-
-    return view(
-        'admin.pengembalian.create',
-        compact('peminjaman', 'petugas')
-    );
-
-})->name('pengembalian.create');
-
-
-// Simpan pengembalian
-Route::post('/pengembalian', function (Request $request) {
-
-    $request->validate([
-    'peminjaman_id' => 'required|exists:peminjaman,id',
-    'tgl_kembali' => 'required|date',
-    'kondisi_kembali' => 'required|string',
-    'denda' => 'required|integer|min:0',
-    'petugas_id' => 'required|exists:users,id',
-]);
-
-    Pengembalian::create([
-        'peminjaman_id' => $request->peminjaman_id,
-        'tgl_kembali' => $request->tgl_kembali,
-        'kondisi_kembali' => $request->kondisi_kembali,
-        'denda' => $request->denda,
-        'petugas_id' => $request->petugas_id,
-    ]);
-
-    return redirect()
-        ->route('admin.pengembalian.index')
-        ->with('success', 'Data pengembalian berhasil ditambahkan.');
-
-})->name('pengembalian.store');
-
-
-// =====================================================
-// EDIT PENGEMBALIAN
-// =====================================================
-
-Route::get('/pengembalian/{id}/edit', function ($id) {
-
-    $pengembalian = Pengembalian::with([
-        'peminjaman.user',
-        'petugas'
-    ])->findOrFail($id);
-
-    $petugas = User::whereIn('role', ['petugas', 'admin'])
-        ->orderBy('name')
-        ->get();
-
-    return view(
-        'admin.pengembalian.edit',
-        compact('pengembalian', 'petugas')
-    );
-
-})->name('pengembalian.edit');
-
-
-// Update pengembalian
-Route::put('/pengembalian/{id}', function (Request $request, $id) {
-
-    $request->validate([
-        'tgl_kembali' => 'required|date',
-        'kondisi_kembali' => 'required|string',
-        'denda' => 'required|integer|min:0',
-        'petugas_id' => 'required|exists:users,id',
-    ]);
-
-    $pengembalian = Pengembalian::findOrFail($id);
-
-    $pengembalian->update([
-        'tgl_kembali' => $request->tgl_kembali,
-        'kondisi_kembali' => $request->kondisi_kembali,
-        'denda' => $request->denda,
-        'petugas_id' => $request->petugas_id,
-    ]);
-
-    return redirect()
-        ->route('admin.pengembalian.index')
-        ->with('success', 'Data pengembalian berhasil diperbarui.');
-
-})->name('pengembalian.update');
-
-
-// =====================================================
-// HAPUS PENGEMBALIAN
-// =====================================================
-
-Route::delete('/pengembalian/{id}', function ($id) {
-
-    $pengembalian = Pengembalian::findOrFail($id);
-
-    $pengembalian->delete();
-
-    return redirect()
-        ->route('admin.pengembalian.index')
-        ->with('success', 'Data pengembalian berhasil dihapus.');
-
-})->name('pengembalian.destroy');
-
- Route::get('/log-aktivitas', [LogAktivitasController::class, 'index'])
+Route::get('/log-aktivitas', [LogAktivitasController::class, 'index'])
     ->name('log-aktivitas');
-    });
-
+    });    
 
 // =====================================================
 // PETUGAS
 // =====================================================
-Route::middleware(['auth', 'check.active', 'role:petugas'])->group(function () {
-    // route petugas
-
+Route::middleware(['auth', 'check.active', 'role:petugas'])
+    ->prefix('petugas')
+    ->name('petugas.')
+    ->group(function () {
 
         // Persetujuan Peminjaman
         Route::get('/peminjaman', [PetugasController::class, 'indexPeminjaman'])
             ->name('peminjaman.index');
 
-        // Setujui Peminjaman
         Route::post('/peminjaman/{id}/setujui', [PetugasController::class, 'setujuPeminjaman'])
-            ->name('peminjam.setujui');
-
-        // Tolak Peminjaman
+            ->name('peminjaman.setujui');
+        //
         Route::post('/peminjaman/{id}/tolak', [PetugasController::class, 'tolakPeminjaman'])
-            ->name('peminjam.tolak');
+            ->name('peminjaman.tolak');
 
         // Pemantauan Pengembalian
         Route::get('/pengembalian', [PetugasController::class, 'indexPengembalian'])
@@ -357,34 +247,31 @@ Route::middleware(['auth', 'check.active', 'role:petugas'])->group(function () {
 
 
 
-Route::middleware(['auth', 'check.active', 'role:peminjam'])->group(function () {
-    // route peminjam
+Route::middleware(['auth', 'check.active', 'role:peminjam'])
+    ->prefix('peminjam')
+    ->name('peminjam.')
+    ->group(function () {
 
+    // Katalog alat
+    Route::get('/katalog', [PeminjamanController::class, 'katalogAlat'])
+        ->name('katalog');
 
-        // Dashboard
-        Route::get('/dashboard', [PeminjamanController::class, 'dashboard'])
-            ->name('dashboard');
+    // Ajukan peminjaman dari katalog
+    Route::post('/peminjaman/ajukan', [PeminjamanController::class, 'ajukanPeminjaman'])
+        ->name('peminjaman.ajukan');
 
-        // Katalog
-        Route::get('/katalog', [PeminjamanController::class, 'katalogAlat'])
-            ->name('katalog');
+    // Riwayat peminjaman saya
+    Route::get('/peminjaman', [PeminjamanController::class, 'riwayatPeminjaman'])
+        ->name('peminjaman');
 
-        // Ajukan peminjaman
-        Route::post('/peminjaman/ajukan', [PeminjamanController::class, 'ajukanPeminjaman'])
-            ->name('peminjaman.ajukan');
+    // Batalkan pengajuan
+    Route::delete('/peminjaman/{id}/cancel', [PeminjamanController::class, 'cancelPeminjaman'])
+        ->name('peminjaman.cancel');
 
-        // Peminjaman saya
-        Route::get('/peminjaman', [PeminjamanController::class, 'riwayatPeminjaman'])
-            ->name('peminjaman');
-
-        // Batalkan pengajuan
-        Route::delete('/peminjaman/{id}/cancel', [PeminjamanController::class, 'cancelPeminjaman'])
-            ->name('peminjaman.cancel');
-
-        // Ajukan pengembalian
-        Route::post('/peminjaman/{id}/kembalikan', [PeminjamanController::class, 'ajukanPengembalian'])
-            ->name('peminjaman.kembalikan');
-    });
+    // Ajukan pengembalian
+    Route::post('/peminjaman/{id}/kembalikan', [PeminjamanController::class, 'ajukanPengembalian'])
+        ->name('peminjaman.kembalikan');
+});
 // =====================================================
 // GUEST / BELUM LOGIN
 // =====================================================

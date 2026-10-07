@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Models\Peminjaman;
 use App\Models\User;
+use Carbon\Carbon;
 
 class Pengembalian extends Model
 {
@@ -33,4 +34,19 @@ class Pengembalian extends Model
     public function petugas(): BelongsTo {
         return $this->belongsTo(User::class, 'petugas_id');
     }
+    
+
+const DENDA_TERLAMBAT = 5000;
+
+public function details()
+{
+    return $this->hasMany(PengembalianDetail::class);
+}
+
+
+
+public function getTotalRusakAttribute(): int
+{
+    return (int) $this->details->sum('jumlah_rusak');
+}
     }

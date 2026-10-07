@@ -4,6 +4,11 @@
 @section('header-title', 'Tambah Alat Baru')
 
 @section('content')
+@if (session('error'))
+    <div class="mb-4 p-4 rounded-lg bg-red-100 border border-red-300 text-red-700 font-semibold">
+        {{ session('error') }}
+    </div>
+@endif
 <div class="max-w-xl bg-white rounded-lg shadow-sm border border-gray-200 p-6">
 
     <form action="{{ route('admin.alat.store') }}" method="POST" enctype="multipart/form-data">
@@ -25,9 +30,8 @@
             >
 
             @error('nama_alat')
-                <span class="text-red-500 text-xs">{{ $message }}</span>
+            <span class="text-red-500 text-xs">{{ $message }}</span>
             @enderror
-        </div>
 
         {{-- Kategori --}}
         <div class="mb-4">
