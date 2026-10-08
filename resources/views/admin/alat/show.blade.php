@@ -4,6 +4,9 @@
 @section('header-title', 'Manajemen Data Alat')
 
 @section('content')
+@if(session('error'))
+    <div class="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm">{{ session('error') }}</div>
+@endif
     <a href="{{ route('admin.alat.index') }}" class="text-sm font-medium text-blue-600 hover:underline">← Kembali ke Daftar Alat</a>
 
     <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
@@ -62,6 +65,36 @@
             <div class="col-span-2 sm:col-span-3">
                 <dt class="text-slate-500">Deskripsi alat</dt>
                 <dd class="mt-0.5 text-slate-700">{{ $alat->deskripsi ?: '-' }}</dd>
+                @if(($alat->jumlah_rusak ?? 0) > 0)
+    <div class="mt-6 pt-5 border-t border-slate-100">
+        <p class="text-sm font-semibold text-slate-700 mb-1">Perbaikan Alat</p>
+        <p class="text-xs text-slate-500 mb-3">
+            Isi jumlah unit yang sudah selesai diperbaiki. Unit tersebut kembali menjadi stok baik.
+        </p>
+
+        <form action="{{ route('admin.alat.perbaiki', $alat->id) }}"
+              method="POST"
+              onsubmit="return confirm('Yakin unit ini sudah selesai diperbaiki?')"
+              class="flex items-center gap-3">
+            @csrf
+
+            <input type="number"
+                   name="jumlah_diperbaiki"
+                   value="{{ $alat->jumlah_rusak }}"
+                   min="1"
+                   max="{{ $alat->jumlah_rusak }}"
+                   class="w-24 rounded-lg border border-slate-300 px-3 py-2 text-sm text-center">
+
+            <span class="text-sm text-slate-500">dari {{ $alat->jumlah_rusak }} unit rusak</span>
+
+            <button type="submit"
+                    class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700
+                           text-white text-sm font-semibold">
+                Selesai Diperbaiki
+            </button>
+        </form>
+    </div>
+@endif
             </div>
         </dl>
     </section>

@@ -5,6 +5,16 @@
 
 @section('content')
 
+@if(session('success'))
+    <div class="mb-4 p-3 rounded bg-emerald-50 text-emerald-700 text-sm">{{ session('success') }}</div>
+@endif
+@if(session('error') || $errors->any())
+    <div class="mb-4 p-3 rounded bg-red-50 text-red-700 text-sm">
+        {{ session('error') }}
+        @foreach($errors->all() as $e) <p>{{ $e }}</p> @endforeach
+    </div>
+@endif
+
 <div class="p-6">
 
     <div class="flex justify-between items-center mb-6">
@@ -223,32 +233,10 @@
                             <td class="py-4 px-4 border-b">
 
                                 @if($statusTampilan === 'dipinjamkan' || $statusTampilan === 'telat')
-
-                                    <form
-                                        action="{{ route('petugas.pengembalian.proses', $item->id) }}"
-                                        method="POST"
-                                        onsubmit="return confirm('Yakin barang ini sudah dikembalikan?')"
-                                    >
-
-                                        @csrf
-
-                                        {{-- Tidak ada denda otomatis --}}
-                                        <input
-                                            type="hidden"
-                                            name="kondisi_kembali"
-                                            value="baik"
-                                        >
-
-                                        <button
-                                            type="submit"
-                                            class="px-4 py-2 bg-green-600 hover:bg-green-700
-                                                   text-white rounded-lg text-xs font-semibold
-                                                   transition"
-                                        >
-                                            Proses Pengembalian
-                                        </button>
-
-                                    </form>
+                                    <a href="{{ route('petugas.pengembalian.form', $item->id) }}"
+   class="inline-block bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-semibold">
+    Proses Pengembalian
+</a>
 
                                 @else
 

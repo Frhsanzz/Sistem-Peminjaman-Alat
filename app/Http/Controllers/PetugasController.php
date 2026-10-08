@@ -329,42 +329,36 @@ public function indexPengembalian()
 }
 
 // =========================
+// FORM PROSES PENGEMBALIAN
+// =========================
+public function formPengembalian($id)
+{
+    $peminjaman = Peminjaman::with(['user', 'detailPinjam.alat'])
+        ->findOrFail($id);
+
+    if (!in_array($peminjaman->status, ['dipinjamkan', 'telat'])) {
+        return redirect()
+            ->route('petugas.pengembalian.index')
+            ->with('error', 'Peminjaman ini sudah dikembalikan atau tidak dapat diproses.');
+    }
+
+    return view('petugas.pengembalian.form', compact('peminjaman'));
+}
+
+// =========================
 // PROSES PENGEMBALIAN
 // =========================
 
 public function prosesPengembalian(Request $request, $peminjamanId)
 {
     $request->validate([
-        'kondisi_kembali' => 'required|string',
-
-        'denda' => [
-            'nullable',
-            'numeric',
-            'min:0'
-        ],
-
-        'jumlah_rusak' => [
-            'required',
-            'array'
-        ],
-
-        'jumlah_rusak.*' => [
-            'required',
-            'integer',
-            'min:0'
-        ],
-
-        'keterangan_rusak' => [
-            'nullable',
-            'array'
-        ],
-
-        'keterangan_rusak.*' => [
-            'nullable',
-            'string',
-            'max:500'
-        ],
-    ]);
+    'tgl_kembali'       => ['required', 'date'],
+    'denda_terlambat'   => ['nullable', 'numeric', 'min:0'],
+    'denda_kerusakan'   => ['nullable', 'numeric', 'min:0'],
+    'catatan_kerusakan' => ['nullable', 'string', 'max:500'],
+    'jumlah_rusak'      => ['nullable', 'array'],
+    'jumlah_rusak.*'    => ['nullable', 'integer', 'min:0'],
+]);
 
     DB::beginTransaction();
 
@@ -395,6 +389,17 @@ public function prosesPengembalian(Request $request, $peminjamanId)
             );
         }
 
+        $totalDipinjam = (int) $peminjaman->detailPinjam->sum('jumlah');
+$totalRusak = 0;
+
+foreach ($peminjaman->detailPinjam as $d) {
+    $totalRusak += (int) ($request->jumlah_rusak[$d->alat_id] ?? 0);
+}
+
+$kondisi = $totalRusak === 0
+    ? 'baik'
+    : ($totalRusak >= $totalDipinjam ? 'rusak' : 'sebagian rusak');
+
 
         /*
          * Pastikan belum pernah dikembalikan.
@@ -413,14 +418,19 @@ public function prosesPengembalian(Request $request, $peminjamanId)
         /*
          * SIMPAN DATA PENGEMBALIAN
          */
-        $pengembalian = Pengembalian::create([
-            'peminjaman_id' => $peminjaman->id,
-            'tgl_kembali' => now(),
-            'kondisi_kembali' => $request->kondisi_kembali,
-            'denda' => (int) ($request->denda ?? 0),
-            'petugas_id' => auth()->id(),
-        ]);
+        $dendaTerlambat = (int) ($request->denda_terlambat ?? 0);
+        $dendaKerusakan = (int) ($request->denda_kerusakan ?? 0);
 
+$pengembalian = Pengembalian::create([
+    'peminjaman_id'     => $peminjaman->id,
+    'tgl_kembali'       => $request->tgl_kembali,
+    'kondisi_kembali'   => $kondisi,
+    'denda'             => $dendaTerlambat + $dendaKerusakan,
+    'denda_terlambat'   => $dendaTerlambat,
+    'denda_kerusakan'   => $dendaKerusakan,
+    'catatan_kerusakan' => $request->catatan_kerusakan,
+    'petugas_id'        => auth()->id(),
+]);
 
         /*
          * PROSES SETIAP ALAT
@@ -473,12 +483,7 @@ public function prosesPengembalian(Request $request, $peminjamanId)
                 $alat->jumlah_rusak += $jumlahRusak;
 
 
-                $keterangan = trim(
-                    (string) (
-                        $request->keterangan_rusak[$detail->alat_id]
-                        ?? ''
-                    )
-                );
+                $keterangan = trim((string) ($request->catatan_kerusakan ?? ''));
 
 
                 if ($keterangan !== '') {
@@ -513,17 +518,7 @@ public function prosesPengembalian(Request $request, $peminjamanId)
             ]);
 
 
-            /*
-             * RIWAYAT KERUSAKAN
-             */
-            if ($jumlahRusak > 0) {
-
-                $alat->riwayat()->create([
-                    'keterangan' =>
-                        "Dilaporkan rusak saat pengembalian "
-                        . "({$jumlahRusak} unit)",
-                ]);
-            }
+            
         }
 
 
@@ -550,10 +545,9 @@ public function prosesPengembalian(Request $request, $peminjamanId)
 
         DB::commit();
 
-        return back()->with(
-            'success',
-            'Pengembalian berhasil diproses. Stok alat telah diperbarui.'
-        );
+        return redirect()
+    ->route('petugas.pengembalian.index')
+    ->with('success', 'Pengembalian berhasil diproses. Stok alat telah diperbarui.');
 
     } catch (\Exception $e) {
 

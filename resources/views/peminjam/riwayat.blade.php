@@ -928,8 +928,12 @@
             <div>
                 <p class="font-semibold text-sm">Peminjaman Selesai</p>
                 <p class="mt-1 text-xs text-emerald-600">
-                    Alat telah dikembalikan dan peminjaman ini telah selesai.
-                </p>
+    Pengembalian telah diverifikasi petugas
+    @if($peminjam->pengembalian)
+        pada {{ \Carbon\Carbon::parse($peminjam->pengembalian->tgl_kembali)->format('d-m-Y') }}
+        &middot; Kondisi: {{ ucfirst($peminjam->pengembalian->kondisi_kembali) }}
+    @endif
+</p>
             </div>
         </div>
     </div>

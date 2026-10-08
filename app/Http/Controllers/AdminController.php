@@ -124,7 +124,7 @@ class AdminController extends Controller
         'email' => 'required|string|email|max:255|unique:users',
         'password' => 'required|string|min:6',
         'role' => 'required|in:admin,petugas,peminjam',
-        'no_hp' => 'nullable|string|max:20',
+        'no_hp' => ['nullable', 'regex:/^[0-9]+$/', 'min:10', 'max:15'],
         'photo' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
     ]);
 
@@ -171,10 +171,15 @@ class AdminController extends Controller
         'name' => 'required|string|max:255',
         'email' => 'required|string|email|max:255|unique:users,email,' . $id,
         'role' => 'required|in:admin,petugas,peminjam',
-        'no_hp' => 'nullable|string|max:20',
+        'no_hp' => ['nullable', 'regex:/^[0-9]+$/', 'min:10', 'max:15'],
+        
         'password' => 'nullable|string|min:6',
         'photo' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
-    ]);
+    ],[
+        'no_hp.regex' => 'No. HP hanya boleh berisi angka.',
+        'no_hp.min'   => 'No. HP minimal 10 digit.',
+        'no_hp.max'   => 'No. HP maksimal 15 digit.',
+        ]);
 
     $data = [
         'name' => $request->name,
@@ -438,36 +443,56 @@ public function toggleStatusUser($id)
 
 public function perbaikiAlat(Request $request, $id)
 {
-    $alat = Alat::findOrFail($id);
-
-    if ($alat->jumlah_rusak < 1) {
-        return back()->with('error', 'Alat ini tidak memiliki unit rusak.');
-    }
-
-    $data = $request->validate([
-        'jumlah' => ['required', 'integer', 'min:1', 'max:' . $alat->jumlah_rusak],
-    ], [
-        'jumlah.required' => 'Jumlah wajib diisi.',
-        'jumlah.min'      => 'Jumlah minimal 1 unit.',
-        'jumlah.max'      => 'Jumlah tidak boleh lebih dari ' . $alat->jumlah_rusak . ' unit rusak.',
+    $request->validate([
+        'jumlah_diperbaiki' => ['required', 'integer', 'min:1'],
     ]);
 
-    DB::transaction(function () use ($alat, $data) {
-        $alat->decrement('jumlah_rusak', $data['jumlah']);
-        $alat->refresh();
+    DB::beginTransaction();
 
-        // semua unit sudah baik: bersihkan info kerusakan
-        if ($alat->jumlah_rusak === 0) {
-            $alat->tanggal_rusak = null;
-            $alat->keterangan_rusak = null;
+    try {
+        $alat = Alat::lockForUpdate()->findOrFail($id);
+
+        $jumlah = (int) $request->jumlah_diperbaiki;
+
+        if ($alat->jumlah_rusak < 1) {
+            throw new \Exception('Alat ini tidak memiliki unit rusak.');
         }
 
-        $alat->syncKondisi(); // update status_kondisi + save()
-    });
+        if ($jumlah > $alat->jumlah_rusak) {
+            throw new \Exception(
+                "Jumlah diperbaiki tidak boleh lebih dari {$alat->jumlah_rusak} unit."
+            );
+        }
 
-    return redirect()
-        ->route('admin.alat.index')
-        ->with('success', "{$data['jumlah']} unit {$alat->nama_alat} berhasil diperbaiki.");
+        // Unit rusak berkurang, otomatis stok baik bertambah
+        $alat->jumlah_rusak -= $jumlah;
+
+        // Jika semua sudah diperbaiki, bersihkan data kerusakan
+        if ($alat->jumlah_rusak === 0) {
+            $alat->keterangan_rusak = null;
+            $alat->tanggal_rusak    = null;
+            $alat->pelapor_id       = null;
+        }
+
+        $alat->save();
+
+        // Perbarui status kondisi
+        if (method_exists($alat, 'syncKondisi')) {
+            $alat->syncKondisi();
+            $alat->save();
+        }
+
+        DB::commit();
+
+        return redirect()
+            ->route('admin.alat.index')
+            ->with('success', "{$jumlah} unit {$alat->nama_alat} selesai diperbaiki dan kembali ke stok baik.");
+
+    } catch (\Throwable $e) {
+        DB::rollBack();
+
+        return back()->with('error', 'Gagal memperbaiki alat: ' . $e->getMessage());
+    }
 }
 public function getKondisiLabelAttribute(): array
 {

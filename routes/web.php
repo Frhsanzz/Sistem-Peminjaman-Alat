@@ -233,6 +233,9 @@ Route::middleware(['auth', 'check.active', 'role:petugas'])
         // Pemantauan Pengembalian
         Route::get('/pengembalian', [PetugasController::class, 'indexPengembalian'])
             ->name('pengembalian.index');
+        
+        Route::get('/pengembalian/{id}/form', [PetugasController::class, 'formPengembalian'])
+            ->name('pengembalian.form');
 
         // Proses Pengembalian
         Route::post('/pengembalian/{id}', [PetugasController::class, 'prosesPengembalian'])

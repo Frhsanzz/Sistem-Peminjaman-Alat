@@ -207,7 +207,7 @@
                                 <label class="text-[11px] text-white/40">Tanggal Kembali</label>
                                 <input
                                     type="date"
-                                    min="{{ now()->toDateString }}"
+                                    min="{{ now()->toDateString() }}"
                                     name="tanggal_kembali[{{ $item->id }}]"
                                     disabled
                                     class="tanggal-alat w-[140px] rounded-xl border border-white/10
@@ -225,7 +225,7 @@
                                     name="jumlah[{{ $item->id }}]"
                                     value="1"
                                     min="1"
-                                    max="{{ max(0, $item->stok - $item->jumlah_rusak }}"
+                                    max="{{ max(0, $item->stok - $item->jumlah_rusak) }}"
                                     class="w-16 text-center rounded-xl border border-white/10
                                            bg-white/5 px-2 py-2 text-[15px] text-white
                                            [color-scheme:dark]

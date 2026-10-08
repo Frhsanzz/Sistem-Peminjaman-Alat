@@ -85,10 +85,7 @@ class PengembalianController extends Controller
             'pengembalian'
         ])->findOrFail($request->peminjaman_id);
 
-        dd([
-    'denda_terlambat' => $request->denda_terlambat,
-    'denda_kerusakan' => $request->denda_kerusakan,
-    ]);
+       
 
         // Cegah pengembalian dua kali
         if ($peminjaman->pengembalian) {
@@ -146,18 +143,9 @@ class PengembalianController extends Controller
              * DENDA DIINPUT MANUAL
              */
 
-            $dendaTelat = (int) (
-                $request->denda_terlambat ?? 0
-            );
-
-            $dendaRusak = (int) (
-                $request->denda_kerusakan ?? 0
-            );
-
-            /*
-             * Total denda
-             */
-            $totalDenda = $dendaTelat + $dendaRusak;
+            $dendaTerlambat = (int) ($request->denda_terlambat ?? 0);
+            $dendaKerusakan = (int) ($request->denda_kerusakan ?? 0);
+            $totalDenda     = $dendaTerlambat + $dendaKerusakan;
 
 
             /*
@@ -170,9 +158,8 @@ class PengembalianController extends Controller
                 'kondisi_kembali'   => $kondisi,
 
                 'denda'             => $totalDenda,
-                'denda_terlambat'   => $dendaTelat,
-                'denda_kerusakan'   => $dendaRusak,
-
+                'denda_terlambat'   => $dendaTerlambat,
+                'denda_kerusakan'   => $dendaKerusakan,
                 'catatan_kerusakan' => $request->catatan_kerusakan,
 
                 'petugas_id'        => auth()->id(),

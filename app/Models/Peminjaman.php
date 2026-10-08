@@ -40,7 +40,7 @@ class Peminjaman extends Model
 
     public function pengembalian(): HasOne
     {
-        return $this->hasOne(Pengembalian::class);
+        return $this->hasOne(Pengembalian::class, 'peminjaman_id');
     }
 
     // Menentukan tampilan badge berdasarkan status peminjaman
